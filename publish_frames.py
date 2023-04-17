@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+
+import paho.mqtt.client as mqtt
+import json
+import csv
+import os
+
+with open(f"/etc/entomologist/ento.conf",'r') as file:
+	data=json.load(file)
+FRAMES_PATH = data["device"]["STORAGE_PATH"]
+
+TOPIC = None
+QoS = None
+PAYLOAD = None
+FRAME_FILLE = None
+
+
+def on_publish(client, userdata, message):
+	print("Data Published. Deleting File...\n")
+	try:
+		os.remove(FRAMES_PATH + FRAME_FILLE)
+		print(f"{FRAME_FILLE} Deleted Successfully. Disconnecting from clinet...")
+	except Exception as e:
+		print(f"{FRAME_FILLE} could not be deleted. Disconnecting from client...")
+		print(e)
+	client.disconnect()
+
+def on_connect(client, userdata, flags, rc):
+	if rc == 0:
+		print("Publish Client Connected")
+	else:
+		print("Bad connection: Publish Client")
+
+
+def start_publish_frames(broker, port, interval , clientName, topic, qos, payload, rootCA, cert, privateKey, frame_file):
+
+	global TOPIC
+	global QoS
+	global PAYLOAD
+	global FRAME_FILLE
+
+	TOPIC = topic
+	QoS = qos
+	PAYLOAD = payload
+	FRAME_FILLE = frame_file
+
+	# AWS Publishing Cient
+	pubClient = mqtt.Client(clientName)
+
+	# Setting Certificates
+	pubClient.tls_set(rootCA, cert, privateKey)
+	print(frame_file)
+	# Callback functions
+	pubClient.on_connect = on_connect
+	pubClient.on_publish = on_publish
+
+	# Connecting to broker and publishing payload.
+	pubClient.connect(broker, port, interval)
+	pubClient.publish(topic, payload, qos)
+
+	pubClient.loop_forever()
